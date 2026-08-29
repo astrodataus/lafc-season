@@ -185,6 +185,12 @@ footer a:hover{color:var(--ink);border-bottom-color:currentColor}
   Object.keys(DATA).forEach(function (n) { qs[n] = make(n); refresh(n); });
 
   /* ---- URL hash stands in for omni.params ---------------------------- */
+  /* Inside a published Omni app the page runs in a sandboxed srcdoc iframe
+     with an opaque origin: writing location or history counts as navigating
+     away and the sandbox stops the app. Detect that and keep the params
+     purely in memory; the URL bar is only used when we own it. */
+  var SANDBOXED = false;
+  try { if (window.origin === 'null') SANDBOXED = true; } catch (e) { SANDBOXED = true; }
   function readHash() {
     var p = {};
     (location.hash || '').replace(/^#/, '').split('&').forEach(function (kv) {
@@ -200,7 +206,10 @@ footer a:hover{color:var(--ink);border-bottom-color:currentColor}
       .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]); })
       .join('&');
     var next = s ? '#' + s : '';
-    if (next !== location.hash) history.replaceState(null, '', location.pathname + location.search + next);
+    if (SANDBOXED) return;
+    try {
+      if (next !== location.hash) history.replaceState(null, '', location.pathname + location.search + next);
+    } catch (e) {}
   }
 
   var params = readHash();
@@ -217,9 +226,17 @@ footer a:hover{color:var(--ink);border-bottom-color:currentColor}
   /* Back button. There is no hook in the app for re-entering a season, so
      rather than half-restore the state, reload on a hash the app did not
      write itself. Comparing first means our own setParams never triggers it. */
-  window.addEventListener('hashchange', function () {
+  if (!SANDBOXED) window.addEventListener('hashchange', function () {
     var h = readHash();
     if (h.season !== params.season || h.tab !== params.tab) location.reload();
+  });
+
+  /* No view in this app renders hash links today, but if one ever does, a
+     click on it must not navigate the sandboxed frame. */
+  document.addEventListener('click', function (e) {
+    if (!SANDBOXED) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href^="#"]') : null;
+    if (a) e.preventDefault();
   });
 })();
 </script>
@@ -287,6 +304,39 @@ td .sub{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(-
 footer{border-top:1px solid var(--rule);margin-top:20px;padding:26px var(--gut) 42px;display:flex;flex-wrap:wrap;gap:10px 34px}
 footer p{margin:0;font-family:var(--mono);font-size:9px;letter-spacing:.13em;color:var(--muted);text-transform:uppercase}
 footer p.lo{text-transform:none;letter-spacing:.05em}
+
+/* ---------- PHONE PASS (720px and down) ---------- */
+@media (max-width:720px){
+  :root{--gut:14px}
+  /* masthead: the season selector and theme button drop to their own row,
+     hugging the right edge so the selector panel stays on screen */
+  .mast-in{padding:24px var(--gut) 0}
+  .mast-top{flex-wrap:wrap;gap:12px}
+  .chrome{flex:1 1 100%;justify-content:flex-end}
+  .tagline{padding-bottom:18px}
+  /* tabs stay a single scrollable strip; tighter padding fits more of them */
+  .tabs{-webkit-overflow-scrolling:touch}
+  .tabs button{padding:13px 12px 11px;letter-spacing:.14em}
+  .tabs .scn-link{padding:13px 12px 11px}
+  .sec{padding:26px 0}
+  .sec-h{flex-wrap:wrap;gap:8px 20px}
+  /* grids: chart panels go single column; strips go two-up */
+  .grid2{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .facts{grid-template-columns:repeat(2,1fr)}
+  .kpis>*,.facts>*,.grid2>*{min-width:0}
+  .kpi{padding:16px 14px 14px}
+  .kpi:nth-child(even){border-right:none}
+  /* wide tables scroll inside their own box instead of squeezing the page */
+  .scrollx table{display:table}
+  table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .scn-card{padding:24px 18px 22px}
+  footer{padding:20px var(--gut) 34px;gap:8px 22px}
+}
+@media (max-width:480px){
+  .kpis{grid-template-columns:1fr}
+  .kpi{border-right:none}
+}
 </style>
 
 <header class="mast">
